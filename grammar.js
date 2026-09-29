@@ -6,9 +6,9 @@ module.exports = grammar({
     word: ($) => $.identifier,
 
     conflicts: ($) => [
+        [$.preprocessor_block],
+        [$._top_level, $._statement],
         [$._expression, $.generic_type],
-        [$._expression, $._type],
-        [$._statement, $._expression],
         [$.extern_function],
         [$.array_expression, $.slice_type],
         [$.array_expression, $.array_type],
@@ -17,6 +17,12 @@ module.exports = grammar({
         [$.named_parameter_list, $.function_type],
         [$.range_expression, $.if_expression],
         [$.binary_expression, $.if_expression],
+        [$._statement, $._expression],
+        [$.literal_pattern, $._expression],
+        [$.single_pattern, $._expression],
+        [$.range_expression, $.typeof_type],
+        [$._expression, $._type],
+        [$._type, $.generic_type],
     ],
 
     rules: {
@@ -36,6 +42,7 @@ module.exports = grammar({
                 $.include_declaration,
                 $.const_declaration,
                 $.let_declaration,
+                $.preprocessor_block,
             ),
 
         line_comment: () => token(seq("//", /.*/)),
@@ -96,6 +103,77 @@ module.exports = grammar({
         _bound_list: ($) => sep1("+", $._type),
 
         generic_args: ($) => seq("#[", commaSep1($._type), "]"),
+
+        preprocessor_block: ($) =>
+            seq(
+                field("directive", $.preprocessor_directive),
+                field("body", $.preprocessor_body),
+                repeat(
+                    choice(
+                        seq(
+                            "else",
+                            optional($.preprocessor_directive),
+                            field("body", $.preprocessor_body)
+                        ),
+                        seq(
+                            $.preprocessor_directive,
+                            field("body", $.preprocessor_body)
+                        )
+                    )
+                )
+            ),
+
+        preprocessor_expr: ($) =>
+            choice(
+                prec(
+                    1,
+                    seq(
+                        field("directive", $.preprocessor_directive),
+                        "{",
+                        field("value", $._expression),
+                        "}",
+                        repeat1(
+                            choice(
+                                seq(
+                                    "else",
+                                    optional($.preprocessor_directive),
+                                    "{",
+                                    field("value", $._expression),
+                                    "}"
+                                ),
+                                seq(
+                                    $.preprocessor_directive,
+                                    "{",
+                                    field("value", $._expression),
+                                    "}"
+                                )
+                            )
+                        )
+                    )
+                ),
+                seq(
+                    field("directive", $.preprocessor_directive),
+                    "{",
+                    field("value", $._expression),
+                    "}"
+                )
+            ),
+
+        preprocessor_directive: ($) =>
+            choice(
+                seq(
+                    choice("@os", "@arch", "@env", "@target", "@family"),
+                    "[",
+                    sep1("|", $.preprocessor_value),
+                    "]"
+                ),
+                "@debug",
+                "@release"
+            ),
+
+        preprocessor_value: () => /[A-Za-z0-9_.-]+/,
+
+        preprocessor_body: ($) => seq("{", repeat(choice($._top_level, $._statement)), "}"),
 
         preprocessor_var: () => seq("@var", "[", /[^\]]+/, "]"),
 
@@ -291,7 +369,9 @@ module.exports = grammar({
                 $.continue_statement,
                 $.expression_statement,
                 $.if_expression,
+                $.switch_expression,
                 seq($.block, optional(";")),
+                $.preprocessor_block
             ),
 
         assign_statement: ($) =>
@@ -356,6 +436,9 @@ module.exports = grammar({
                 $.closure_expression,
                 $.macro_call,
                 $.if_expression,
+                $.switch_expression,
+                $.preprocessor_expr,
+                $.preprocessor_var,
                 $.typeof_expression,
                 $.parenthesized_expression,
                 $.identifier,
@@ -449,6 +532,7 @@ module.exports = grammar({
                 12,
                 seq(
                     field("value", $._expression),
+                    optional($.generic_args),
                     ".",
                     field("field", $.identifier)
                 )
@@ -505,6 +589,65 @@ module.exports = grammar({
         named_parameter: ($) =>
             seq(field("name", $.identifier), ":", field("type", $._type)),
 
+        switch_expression: ($) =>
+            seq(
+                "switch",
+                field("scrutinee", $.parenthesized_expression),
+                "{",
+                commaSep($.switch_arm),
+                optional(","),
+                "}"
+            ),
+
+        switch_arm: ($) =>
+            seq(
+                field("pattern", $.or_pattern),
+                optional(field("guard", $.switch_guard)),
+                "=>",
+                field("body", choice($.block, $._expression))
+            ),
+
+        switch_guard: ($) => seq("if", field("condition", $.parenthesized_expression)),
+
+        or_pattern: ($) => sep1("|", $.single_pattern),
+
+        single_pattern: ($) =>
+            choice(
+                $.variant_pattern,
+                $.literal_pattern,
+                $.range_expression,
+                $.wildcard_pattern,
+                $.ref_pattern,
+                $.binding_pattern
+            ),
+
+        variant_pattern: ($) =>
+            seq(
+                ".",
+                field("name", $.identifier),
+                optional(seq(
+                    "(",
+                    field("payload", $.or_pattern),
+                    ")"
+                ))
+            ),
+
+        ref_pattern: ($) =>
+            seq("&", field("binding", choice($.binding_pattern, $.wildcard_pattern))),
+
+        literal_pattern: ($) =>
+            choice(
+                seq(optional("-"), choice($.integer, $.float)),
+                $.char_literal,
+                $.string_literal,
+                $.true_literal,
+                $.false_literal
+            ),
+
+        wildcard_pattern: () => token(prec(1, "_")),
+
+        binding_pattern: ($) => prec(1, $.identifier),
+
         if_expression: ($) =>
             choice(
                 prec(
@@ -525,9 +668,29 @@ module.exports = grammar({
             ),
 
         macro_call: ($) =>
+            choice(
+                prec(
+                    2,
+                    seq(
+                        field("name", $.type_macro_name),
+                        field("arguments", $.type_first_argument_list)
+                    )
+                ),
+                seq(
+                    field("name", $.macro_name),
+                    field("arguments", $.argument_list)
+                )
+            ),
+
+        type_macro_name: () =>
+            token(prec(2, choice("@as", "@sizeof", "@alignof", "@typename"))),
+
+        type_first_argument_list: ($) =>
             seq(
-                field("name", $.macro_name),
-                field("arguments", $.argument_list)
+                "(",
+                field("type", $._type),
+                optional(seq(",", commaSep1($._expression), optional(","))),
+                ")"
             ),
 
         macro_name: () => token(seq("@", /[A-Za-z_][A-Za-z0-9_]*/)),
