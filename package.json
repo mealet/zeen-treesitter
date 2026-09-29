@@ -1,0 +1,12 @@
+{
+  "name": "tree-sitter-zeen",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for the Zeen programming language",
+  "main": "bindings/node",
+  "keywords": ["tree-sitter", "zeen"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mealet/zeen-treesitter"
+  }
+}
