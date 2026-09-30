@@ -1,0 +1,34 @@
+==================
+Switch over enum
+==================
+
+fn main() {
+  let r = switch (c) {
+    .red => 1,
+    _ => 0,
+  };
+}
+
+---
+
+(program
+  (function_declaration
+    (identifier)
+    (parameter_list)
+    (block
+      (let_declaration
+        (identifier)
+        (switch_expression
+          (parenthesized_expression
+            (identifier))
+          (switch_arm
+            (or_pattern
+              (single_pattern
+                (variant_pattern
+                  (identifier))))
+            (integer))
+          (switch_arm
+            (or_pattern
+              (single_pattern
+                (wildcard_pattern)))
+            (integer)))))))

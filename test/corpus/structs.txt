@@ -1,0 +1,36 @@
+==================
+Struct with method
+==================
+
+struct Point {
+  pub x: i32,
+  pub fn get(*const self) i32 {
+    return (*self).x;
+  }
+}
+
+---
+
+(program
+  (struct_declaration
+    (identifier)
+    (struct_field
+      (visibility)
+      (identifier)
+      (builtin_type))
+    (function_declaration
+      (visibility)
+      (identifier)
+      (parameter_list
+        (parameter
+          (pointer_type
+            (const_type
+              (self_type)))))
+      (builtin_type)
+      (block
+        (return_statement
+          (field_expression
+            (parenthesized_expression
+              (unary_expression
+                (self_type)))
+            (identifier)))))))

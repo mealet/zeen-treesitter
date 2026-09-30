@@ -1,0 +1,19 @@
+==================
+Function declaration
+==================
+
+fn main() {
+  let x: i32 = 1;
+}
+
+---
+
+(program
+  (function_declaration
+    (identifier)
+    (parameter_list)
+    (block
+      (let_declaration
+        (identifier)
+        (builtin_type)
+        (integer)))))
